@@ -41,7 +41,8 @@
       border-radius: 12px;
       padding: 24px;
     }
-    h1 { margin: 0 0 16px; font-size: 1.5rem; }
+    h1 { margin: 0 0 4px; font-size: 1.5rem; }
+    .subtitle { margin: 0 0 16px; font-size: 0.85rem; color: var(--muted); }
     form { display: flex; gap: 8px; }
     input[type="text"] {
       flex: 1;
@@ -110,6 +111,7 @@
 <body>
   <main>
     <h1>할 일 목록</h1>
+    <p class="subtitle">은혜F의 할 일</p>
     <form id="form">
       <input id="input" type="text" placeholder="할 일을 입력하세요" autocomplete="off">
       <button class="add" type="submit">추가</button>
