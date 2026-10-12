@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>할 일 목록</title>
+  <style>
+    :root {
+      --bg: #e0f2fe;
+      --card: #ffffff;
+      --text: #1c1917;
+      --muted: #78716c;
+      --line: #e7e5e4;
+      --accent: #2563eb;
+      --danger: #dc2626;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0c2a3e;
+        --card: #292524;
+        --text: #f5f5f4;
+        --muted: #a8a29e;
+        --line: #44403c;
+        --accent: #60a5fa;
+        --danger: #f87171;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 48px 16px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Malgun Gothic", sans-serif;
+    }
+    main {
+      max-width: 480px;
+      margin: 0 auto;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 24px;
+    }
+    h1 { margin: 0 0 16px; font-size: 1.5rem; }
+    form { display: flex; gap: 8px; }
+    input[type="text"] {
+      flex: 1;
+      min-width: 0;
+      padding: 10px 12px;
+      font-size: 1rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text);
+    }
+    button {
+      font: inherit;
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+    }
+    .add {
+      padding: 10px 20px;
+      background: #2563eb;
+      color: #fff;
+      border-radius: 999px;
+    }
+    .add:hover { background: #1d4ed8; }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 16px;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+    .filters { display: flex; gap: 4px; }
+    .filters button {
+      padding: 4px 10px;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid transparent;
+    }
+    .filters button.active {
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+    ul { list-style: none; margin: 8px 0 0; padding: 0; }
+    li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    li > input[type="checkbox"] { width: 18px; height: 18px; flex: none; }
+    li span { flex: 1; word-break: break-word; cursor: text; }
+    li.done span { text-decoration: line-through; color: var(--muted); }
+    li input.edit { padding: 4px 8px; }
+    .delete {
+      padding: 4px 10px;
+      background: transparent;
+      color: var(--danger);
+    }
+    .empty { margin: 16px 0 0; color: var(--muted); text-align: center; }
+    .hint { margin: 16px 0 0; font-size: 0.8rem; color: var(--muted); text-align: center; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>할 일 목록</h1>
+    <form id="form">
+      <input id="input" type="text" placeholder="할 일을 입력하세요" autocomplete="off">
+      <button class="add" type="submit">추가</button>
+    </form>
+
+    <div class="toolbar">
+      <span id="count"></span>
+      <div class="filters">
+        <button type="button" data-filter="all">전체</button>
+        <button type="button" data-filter="active">할 일</button>
+        <button type="button" data-filter="done">완료</button>
+      </div>
+    </div>
+
+    <ul id="list"></ul>
+    <p id="empty" class="empty"></p>
+    <p class="hint">글자를 더블클릭하면 수정할 수 있어요.</p>
+  </main>
+
+  <script>
+    const STORAGE_KEY = 'todos';
+
+    const form = document.getElementById('form');
+    const input = document.getElementById('input');
+    const list = document.getElementById('list');
+    const empty = document.getElementById('empty');
+    const count = document.getElementById('count');
+    const filterButtons = document.querySelectorAll('.filters button');
+
+    let todos = load();
+    let filter = 'all';
+
+    function load() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+      } catch {
+        return [];
+      }
+    }
+
+    function save() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+      } catch {
+        // 저장할 수 없는 환경이면 화면에서만 유지한다.
+      }
+    }
+
+    function update() {
+      save();
+      render();
+    }
+
+    function startEdit(item, label, todo) {
+      const editor = document.createElement('input');
+      editor.type = 'text';
+      editor.className = 'edit';
+      editor.value = todo.text;
+
+      let finished = false;
+      function finish(keep) {
+        if (finished) return;
+        finished = true;
+        const text = editor.value.trim();
+        if (keep && text) todo.text = text;
+        update();
+      }
+
+      editor.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') finish(true);
+        if (event.key === 'Escape') finish(false);
+      });
+      editor.addEventListener('blur', () => finish(true));
+
+      item.replaceChild(editor, label);
+      editor.focus();
+      editor.select();
+    }
+
+    function render() {
+      list.innerHTML = '';
+
+      const visible = todos.filter((todo) =>
+        filter === 'all' ? true : filter === 'done' ? todo.done : !todo.done
+      );
+
+      for (const todo of visible) {
+        const item = document.createElement('li');
+        item.classList.toggle('done', todo.done);
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = todo.done;
+        checkbox.addEventListener('change', () => {
+          todo.done = checkbox.checked;
+          update();
+        });
+
+        const label = document.createElement('span');
+        label.textContent = todo.text;
+        label.addEventListener('dblclick', () => startEdit(item, label, todo));
+
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'delete';
+        remove.textContent = '삭제';
+        remove.addEventListener('click', () => {
+          todos = todos.filter((t) => t !== todo);
+          update();
+        });
+
+        item.append(checkbox, label, remove);
+        list.append(item);
+      }
+
+      const remaining = todos.filter((todo) => !todo.done).length;
+      count.textContent = `남은 할 일 ${remaining}개`;
+
+      empty.hidden = visible.length > 0;
+      empty.textContent =
+        todos.length === 0 ? '아직 할 일이 없어요.' :
+        filter === 'done' ? '완료한 일이 없어요.' : '남은 할 일이 없어요.';
+
+      filterButtons.forEach((button) => {
+        button.classList.toggle('active', button.dataset.filter === filter);
+      });
+    }
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      todos.push({ text, done: false });
+      input.value = '';
+      input.focus();
+      update();
+    });
+
+    filterButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        filter = button.dataset.filter;
+        render();
+      });
+    });
+
+    render();
+  </script>
+</body>
+</html>
