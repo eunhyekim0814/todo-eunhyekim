@@ -13,6 +13,7 @@
       --line: #e7e5e4;
       --accent: #2563eb;
       --danger: #dc2626;
+      --danger-bg: #fef2f2;
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -23,6 +24,7 @@
         --line: #44403c;
         --accent: #60a5fa;
         --danger: #f87171;
+        --danger-bg: #3b1d1d;
       }
     }
     * { box-sizing: border-box; }
@@ -60,13 +62,23 @@
       border: none;
       border-radius: 8px;
     }
+    button:disabled { opacity: 0.6; cursor: default; }
     .add {
       padding: 10px 20px;
       background: #2563eb;
       color: #fff;
       border-radius: 999px;
     }
-    .add:hover { background: #1d4ed8; }
+    .add:hover:not(:disabled) { background: #1d4ed8; }
+    .error {
+      margin: 16px 0 0;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: var(--danger-bg);
+      color: var(--danger);
+      font-size: 0.9rem;
+      word-break: break-word;
+    }
     .toolbar {
       display: flex;
       align-items: center;
@@ -114,8 +126,10 @@
     <p class="subtitle">은혜F의 할 일</p>
     <form id="form">
       <input id="input" type="text" placeholder="할 일을 입력하세요" autocomplete="off">
-      <button class="add" type="submit">추가</button>
+      <button id="add" class="add" type="submit">추가</button>
     </form>
+
+    <p id="error" class="error" role="alert" hidden></p>
 
     <div class="toolbar">
       <span id="count"></span>
@@ -131,37 +145,99 @@
     <p class="hint">글자를 더블클릭하면 수정할 수 있어요.</p>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.js"></script>
+  <script src="config.js"></script>
   <script>
-    const STORAGE_KEY = 'todos';
-
     const form = document.getElementById('form');
     const input = document.getElementById('input');
+    const addButton = document.getElementById('add');
     const list = document.getElementById('list');
     const empty = document.getElementById('empty');
     const count = document.getElementById('count');
+    const errorBox = document.getElementById('error');
     const filterButtons = document.querySelectorAll('.filters button');
 
-    let todos = load();
+    let db = null;
+    let todos = [];
     let filter = 'all';
+    let loading = true;
 
-    function load() {
-      try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-      } catch {
-        return [];
-      }
+    function showError(message, error) {
+      errorBox.textContent = error ? `${message} (${error.message})` : message;
+      errorBox.hidden = false;
+      if (error) console.error(message, error);
     }
 
-    function save() {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
-      } catch {
-        // 저장할 수 없는 환경이면 화면에서만 유지한다.
-      }
+    function clearError() {
+      errorBox.hidden = true;
+      errorBox.textContent = '';
     }
 
-    function update() {
-      save();
+    // RLS 때문에 막히면 오류 없이 0개만 바뀔 수 있어서, 바뀐 개수도 확인한다.
+    function failed(message, { data, error }) {
+      if (error) {
+        showError(message, error);
+        return true;
+      }
+      if (!data || data.length === 0) {
+        showError(`${message} (권한이 없거나 이미 지워진 할 일이에요.)`);
+        return true;
+      }
+      return false;
+    }
+
+    async function loadTodos() {
+      loading = true;
+      render();
+      const { data, error } = await db
+        .from('todos')
+        .select('id, text, done')
+        .order('created_at')
+        .order('id');
+      loading = false;
+      if (error) {
+        showError('할 일을 불러오지 못했어요.', error);
+      } else {
+        todos = data;
+      }
+      render();
+    }
+
+    async function addTodo(text) {
+      clearError();
+      addButton.disabled = true;
+      const result = await db
+        .from('todos')
+        .insert({ text })
+        .select('id, text, done');
+      addButton.disabled = false;
+      if (failed('할 일을 추가하지 못했어요.', result)) return false;
+      todos.push(result.data[0]);
+      render();
+      return true;
+    }
+
+    async function updateTodo(todo, changes, message) {
+      clearError();
+      const result = await db
+        .from('todos')
+        .update(changes)
+        .eq('id', todo.id)
+        .select('id');
+      if (!failed(message, result)) Object.assign(todo, changes);
+      render();
+    }
+
+    async function deleteTodo(todo) {
+      clearError();
+      const result = await db
+        .from('todos')
+        .delete()
+        .eq('id', todo.id)
+        .select('id');
+      if (!failed('할 일을 지우지 못했어요.', result)) {
+        todos = todos.filter((t) => t !== todo);
+      }
       render();
     }
 
@@ -176,8 +252,11 @@
         if (finished) return;
         finished = true;
         const text = editor.value.trim();
-        if (keep && text) todo.text = text;
-        update();
+        if (keep && text && text !== todo.text) {
+          updateTodo(todo, { text }, '할 일을 수정하지 못했어요.');
+        } else {
+          render();
+        }
       }
 
       editor.addEventListener('keydown', (event) => {
@@ -206,8 +285,7 @@
         checkbox.type = 'checkbox';
         checkbox.checked = todo.done;
         checkbox.addEventListener('change', () => {
-          todo.done = checkbox.checked;
-          update();
+          updateTodo(todo, { done: checkbox.checked }, '완료 표시를 바꾸지 못했어요.');
         });
 
         const label = document.createElement('span');
@@ -218,10 +296,7 @@
         remove.type = 'button';
         remove.className = 'delete';
         remove.textContent = '삭제';
-        remove.addEventListener('click', () => {
-          todos = todos.filter((t) => t !== todo);
-          update();
-        });
+        remove.addEventListener('click', () => deleteTodo(todo));
 
         item.append(checkbox, label, remove);
         list.append(item);
@@ -232,6 +307,7 @@
 
       empty.hidden = visible.length > 0;
       empty.textContent =
+        loading ? '불러오는 중...' :
         todos.length === 0 ? '아직 할 일이 없어요.' :
         filter === 'done' ? '완료한 일이 없어요.' : '남은 할 일이 없어요.';
 
@@ -240,14 +316,12 @@
       });
     }
 
-    form.addEventListener('submit', (event) => {
+    form.addEventListener('submit', async (event) => {
       event.preventDefault();
       const text = input.value.trim();
-      if (!text) return;
-      todos.push({ text, done: false });
-      input.value = '';
+      if (!text || !db) return;
+      if (await addTodo(text)) input.value = '';
       input.focus();
-      update();
     });
 
     filterButtons.forEach((button) => {
@@ -257,7 +331,18 @@
       });
     });
 
-    render();
+    if (!window.supabase) {
+      loading = false;
+      render();
+      showError('Supabase 라이브러리를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.');
+    } else if (typeof SUPABASE_URL === 'undefined') {
+      loading = false;
+      render();
+      showError('config.js를 불러오지 못했어요.');
+    } else {
+      db = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+      loadTodos();
+    }
   </script>
 </body>
 </html>
