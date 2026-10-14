@@ -49,6 +49,7 @@
     input[type="text"] {
       flex: 1;
       min-width: 0;
+      width: 100%;
       padding: 10px 12px;
       font-size: 1rem;
       border: 1px solid var(--line);
@@ -56,6 +57,7 @@
       background: transparent;
       color: var(--text);
     }
+    form input#author { flex: 0 0 88px; }
     button {
       font: inherit;
       cursor: pointer;
@@ -108,8 +110,20 @@
       border-bottom: 1px solid var(--line);
     }
     li > input[type="checkbox"] { width: 18px; height: 18px; flex: none; }
-    li span { flex: 1; word-break: break-word; cursor: text; }
-    li.done span { text-decoration: line-through; color: var(--muted); }
+    li .text { flex: 1; word-break: break-word; cursor: text; }
+    li.done .text { text-decoration: line-through; color: var(--muted); }
+    li .author {
+      flex: none;
+      max-width: 96px;
+      padding: 2px 10px;
+      border-radius: 999px;
+      background: var(--bg);
+      color: var(--muted);
+      font-size: 0.8rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     li input.edit { padding: 4px 8px; }
     .delete {
       padding: 4px 10px;
@@ -126,6 +140,7 @@
     <p class="subtitle">은혜F의 할 일</p>
     <form id="form">
       <input id="input" type="text" placeholder="할 일을 입력하세요" autocomplete="off">
+      <input id="author" type="text" placeholder="작성자" maxlength="20" autocomplete="off" aria-label="작성자 (선택)">
       <button id="add" class="add" type="submit">추가</button>
     </form>
 
@@ -150,6 +165,7 @@
   <script>
     const form = document.getElementById('form');
     const input = document.getElementById('input');
+    const authorInput = document.getElementById('author');
     const addButton = document.getElementById('add');
     const list = document.getElementById('list');
     const empty = document.getElementById('empty');
@@ -191,7 +207,7 @@
       render();
       const { data, error } = await db
         .from('todos')
-        .select('id, text, done')
+        .select('id, text, done, author')
         .order('created_at')
         .order('id');
       loading = false;
@@ -203,13 +219,13 @@
       render();
     }
 
-    async function addTodo(text) {
+    async function addTodo(text, author) {
       clearError();
       addButton.disabled = true;
       const result = await db
         .from('todos')
-        .insert({ text })
-        .select('id, text, done');
+        .insert({ text, author })
+        .select('id, text, done, author');
       addButton.disabled = false;
       if (failed('할 일을 추가하지 못했어요.', result)) return false;
       todos.push(result.data[0]);
@@ -289,8 +305,19 @@
         });
 
         const label = document.createElement('span');
+        label.className = 'text';
         label.textContent = todo.text;
         label.addEventListener('dblclick', () => startEdit(item, label, todo));
+
+        item.append(checkbox, label);
+
+        if (todo.author) {
+          const author = document.createElement('span');
+          author.className = 'author';
+          author.textContent = todo.author;
+          author.title = `작성자: ${todo.author}`;
+          item.append(author);
+        }
 
         const remove = document.createElement('button');
         remove.type = 'button';
@@ -298,7 +325,7 @@
         remove.textContent = '삭제';
         remove.addEventListener('click', () => deleteTodo(todo));
 
-        item.append(checkbox, label, remove);
+        item.append(remove);
         list.append(item);
       }
 
@@ -320,7 +347,8 @@
       event.preventDefault();
       const text = input.value.trim();
       if (!text || !db) return;
-      if (await addTodo(text)) input.value = '';
+      const author = authorInput.value.trim() || null;
+      if (await addTodo(text, author)) input.value = '';
       input.focus();
     });
 
