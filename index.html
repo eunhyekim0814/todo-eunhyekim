@@ -107,15 +107,15 @@
 
     /* ---- 돌아다니는 친구들 ---- */
     #critters { position: absolute; inset: 0; }
-    .critter { position: absolute; left: 0; }
-    .critter.cheering { z-index: 50 !important; }
+    .critter { position: absolute; left: 0; pointer-events: auto; cursor: pointer; }
+    .critter.talking { z-index: 50 !important; }
     .critter svg, .runner svg { display: block; width: 100%; height: auto; overflow: visible; }
     .hop {
       transform-origin: 50% 100%;
       animation: breathe 2.4s ease-in-out infinite;
     }
     .critter.walking .hop { animation: hop 0.5s ease-in-out infinite; }
-    .critter.cheering .hop { animation: jump 0.45s ease-out 3; }
+    .critter.talking .hop { animation: jump 0.45s ease-out 2; }
     @keyframes breathe {
       0%, 100% { transform: scale(1, 1); }
       50% { transform: scale(1.04, 0.96); }
@@ -139,15 +139,19 @@
       color: #3a3a3a;
       font-size: 14px;
       font-weight: 700;
-      white-space: nowrap;
+      line-height: 1.35;
+      text-align: center;
+      width: max-content;
+      max-width: 180px;
+      word-break: keep-all;
       opacity: 0;
-      transform: translateX(-50%) scale(0);
+      transform: translateX(calc(-50% + var(--shift, 0px))) scale(0);
       transform-origin: 50% 100%;
     }
     .bubble::after {
       content: "";
       position: absolute;
-      left: 50%;
+      left: calc(50% - var(--shift, 0px));
       top: 100%;
       width: 8px;
       height: 8px;
@@ -157,12 +161,12 @@
       background: #fff;
       transform: rotate(45deg);
     }
-    .bubble.show { animation: pop 2.2s ease-out forwards; }
+    .bubble.show { animation: pop var(--say, 2.2s) ease-out forwards; }
     @keyframes pop {
-      0% { opacity: 0; transform: translateX(-50%) scale(0); }
-      10% { opacity: 1; transform: translateX(-50%) scale(1.15); }
-      18%, 85% { opacity: 1; transform: translateX(-50%) scale(1); }
-      100% { opacity: 0; transform: translateX(-50%) scale(0.85); }
+      0% { opacity: 0; transform: translateX(calc(-50% + var(--shift, 0px))) scale(0); }
+      8% { opacity: 1; transform: translateX(calc(-50% + var(--shift, 0px))) scale(1.15); }
+      14%, 88% { opacity: 1; transform: translateX(calc(-50% + var(--shift, 0px))) scale(1); }
+      100% { opacity: 0; transform: translateX(calc(-50% + var(--shift, 0px))) scale(0.85); }
     }
 
     /* ---- 할 일을 추가하면 우르르 ---- */
@@ -175,7 +179,7 @@
     }
     .runner { position: absolute; top: 0; }
 
-    /* ---- 마우스를 잡고 따라다니는 친구 ---- */
+    /* ---- 마우스를 쳐다보며 따라다니는 친구 ---- */
     .follower {
       position: fixed;
       left: 0;
@@ -189,8 +193,8 @@
     .follower svg { display: block; width: 100%; height: auto; overflow: visible; }
 
     @media (prefers-reduced-motion: reduce) {
-      .cloud, .hop, .critter.walking .hop, .critter.cheering .hop { animation: none; }
-      .bubble.show { animation: none; opacity: 1; transform: translateX(-50%); }
+      .cloud, .hop, .critter.walking .hop, .critter.talking .hop { animation: none; }
+      .bubble.show { animation: none; opacity: 1; transform: translateX(calc(-50% + var(--shift, 0px))); }
     }
     h1 { margin: 0 0 4px; font-size: 1.5rem; }
     .subtitle { margin: 0 0 16px; font-size: 0.85rem; color: var(--muted); }
