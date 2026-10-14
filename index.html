@@ -12,10 +12,12 @@
       --hill-back: #a3d97c;
       --hill-front: #6dbb4a;
       --flower-opacity: 0.85;
-      --card: #ffffff;
+      --card: rgba(255, 255, 255, 0.5);
+      --card-border: rgba(255, 255, 255, 0.85);
+      --field: rgba(255, 255, 255, 0.75);
       --text: #1c1917;
       --muted: #78716c;
-      --line: #e7e5e4;
+      --line: rgba(40, 80, 120, 0.18);
       --accent: #2563eb;
       --danger: #dc2626;
       --danger-bg: #fef2f2;
@@ -28,10 +30,12 @@
         --hill-back: #2f5a34;
         --hill-front: #234629;
         --flower-opacity: 0.45;
-        --card: #292524;
+        --card: rgba(15, 31, 61, 0.5);
+        --card-border: rgba(255, 255, 255, 0.18);
+        --field: rgba(15, 31, 61, 0.6);
         --text: #f5f5f4;
         --muted: #a8a29e;
-        --line: #44403c;
+        --line: rgba(255, 255, 255, 0.16);
         --accent: #60a5fa;
         --danger: #f87171;
         --danger-bg: #3b1d1d;
@@ -52,7 +56,9 @@
       max-width: 480px;
       margin: 0 auto;
       background: var(--card);
-      border: 1px solid var(--line);
+      border: 1px solid var(--card-border);
+      -webkit-backdrop-filter: blur(10px) saturate(1.2);
+      backdrop-filter: blur(10px) saturate(1.2);
       border-radius: 16px;
       padding: 24px;
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
@@ -207,7 +213,7 @@
       font-size: 1rem;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: transparent;
+      background: var(--field);
       color: var(--text);
     }
     form input#input { flex: 1 1 160px; }
