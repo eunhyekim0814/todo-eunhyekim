@@ -55,6 +55,25 @@
     return `<svg viewBox="-4 -8 72 82" aria-hidden="true">${drawing(kind)}</svg>`;
   }
 
+  // 두 팔을 머리 위로 뻗어 마우스를 잡고 매달린 흰 친구. 두 손 사이 (32, -8)이 마우스 위치다.
+  function holderSvg() {
+    const arm = (d) => `
+      <path d="${d}" fill="none" stroke="#3a3a3a" stroke-width="9" stroke-linecap="round"/>
+      <path d="${d}" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round"/>`;
+    return `<svg viewBox="-4 -14 72 88" aria-hidden="true">
+      ${body('#ffffff')}
+      ${arm('M20 52 Q4 30 27 -3')}
+      ${arm('M44 52 Q60 30 37 -3')}
+      <circle cx="16" cy="15" r="6.5" fill="#ffffff" ${OUTLINE}/>
+      <circle cx="48" cy="15" r="6.5" fill="#ffffff" ${OUTLINE}/>
+      <ellipse cx="32" cy="32" rx="24" ry="21" fill="#ffffff" ${OUTLINE}/>
+      ${face('#ffb3c1')}
+      <path d="M28 38 q4 6 8 0 Z" fill="#e8636f" stroke="#3a3a3a" stroke-width="1.6" stroke-linejoin="round"/>
+      <circle cx="27.5" cy="-5" r="4.5" fill="#ffffff" ${OUTLINE}/>
+      <circle cx="36.5" cy="-5" r="4.5" fill="#ffffff" ${OUTLINE}/>
+    </svg>`;
+  }
+
   const random = (min, max) => min + Math.random() * (max - min);
   const pick = (items) => items[Math.floor(Math.random() * items.length)];
 
@@ -161,6 +180,65 @@
       walker.el.classList.remove('cheering');
     }, 2200);
   }
+
+  // ---- 마우스를 두 손으로 잡고 따라다니는 친구 ----
+  function startFollower() {
+    // 마우스가 없는 휴대폰·태블릿에서는 만들지 않는다.
+    if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+
+    const size = 64;
+    const scale = size / 72;
+    const anchorX = 36 * scale; // viewBox 안의 (32, -8) 위치를 픽셀로
+    const anchorY = 6 * scale;
+
+    const el = document.createElement('div');
+    el.className = 'follower';
+    el.style.width = `${size}px`;
+    el.style.transformOrigin = `${anchorX}px ${anchorY}px`;
+    el.innerHTML = holderSvg();
+    document.body.append(el);
+
+    let targetX = 0;
+    let targetY = 0;
+    let x = 0;
+    let y = 0;
+    let angle = 0;
+    let swing = 0;
+    let started = false;
+
+    document.addEventListener('mousemove', (event) => {
+      targetX = event.clientX;
+      targetY = event.clientY;
+      if (!started) {
+        started = true;
+        x = targetX;
+        y = targetY;
+        requestAnimationFrame(frame);
+      }
+      el.classList.add('show');
+    });
+    document.documentElement.addEventListener('mouseleave', () => el.classList.remove('show'));
+
+    function frame() {
+      const previousX = x;
+      const ease = reduceMotion ? 1 : 0.25;
+      x += (targetX - x) * ease;
+      y += (targetY - y) * ease;
+
+      // 움직이는 반대쪽으로 몸이 흔들렸다가 제자리로 돌아온다(진자처럼).
+      if (!reduceMotion) {
+        const speedX = x - previousX;
+        swing += (-speedX * 1.2 - angle) * 0.12;
+        swing *= 0.82;
+        angle = Math.max(-40, Math.min(40, angle + swing));
+      }
+
+      el.style.transform = `translate(${x - anchorX}px, ${y - anchorY}px) rotate(${angle}deg)`;
+      requestAnimationFrame(frame);
+    }
+  }
+
+  startFollower();
 
   window.critters = { rush, cheer };
 })();

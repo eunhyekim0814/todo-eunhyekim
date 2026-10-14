@@ -175,6 +175,19 @@
     }
     .runner { position: absolute; top: 0; }
 
+    /* ---- 마우스를 잡고 따라다니는 친구 ---- */
+    .follower {
+      position: fixed;
+      left: 0;
+      top: 0;
+      z-index: 30;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .follower.show { opacity: 1; }
+    .follower svg { display: block; width: 100%; height: auto; overflow: visible; }
+
     @media (prefers-reduced-motion: reduce) {
       .cloud, .hop, .critter.walking .hop, .critter.cheering .hop { animation: none; }
       .bubble.show { animation: none; opacity: 1; transform: translateX(-50%); }
