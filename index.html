@@ -45,8 +45,8 @@
     }
     h1 { margin: 0 0 4px; font-size: 1.5rem; }
     .subtitle { margin: 0 0 16px; font-size: 0.85rem; color: var(--muted); }
-    form { display: flex; gap: 8px; }
-    input[type="text"] {
+    form { display: flex; flex-wrap: wrap; gap: 8px; }
+    input[type="text"], input[type="date"] {
       flex: 1;
       min-width: 0;
       width: 100%;
@@ -57,7 +57,9 @@
       background: transparent;
       color: var(--text);
     }
+    form input#input { flex: 1 1 160px; }
     form input#author { flex: 0 0 88px; }
+    form input#due { flex: 0 0 auto; width: auto; color-scheme: light dark; }
     button {
       font: inherit;
       cursor: pointer;
@@ -112,6 +114,15 @@
     li > input[type="checkbox"] { width: 18px; height: 18px; flex: none; }
     li .text { flex: 1; word-break: break-word; cursor: text; }
     li.done .text { text-decoration: line-through; color: var(--muted); }
+    li .due {
+      flex: none;
+      font-size: 0.8rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    li .due.soon { color: var(--accent); font-weight: 600; }
+    li .due.overdue { color: var(--danger); font-weight: 600; }
+    li.done .due { color: var(--muted); font-weight: normal; }
     li .author {
       flex: none;
       max-width: 96px;
@@ -141,6 +152,7 @@
     <form id="form">
       <input id="input" type="text" placeholder="할 일을 입력하세요" autocomplete="off">
       <input id="author" type="text" placeholder="작성자" maxlength="20" autocomplete="off" aria-label="작성자 (선택)">
+      <input id="due" type="date" aria-label="마감일 (선택)" title="마감일 (선택)">
       <button id="add" class="add" type="submit">추가</button>
     </form>
 
@@ -166,6 +178,7 @@
     const form = document.getElementById('form');
     const input = document.getElementById('input');
     const authorInput = document.getElementById('author');
+    const dueInput = document.getElementById('due');
     const addButton = document.getElementById('add');
     const list = document.getElementById('list');
     const empty = document.getElementById('empty');
@@ -207,9 +220,7 @@
       render();
       const { data, error } = await db
         .from('todos')
-        .select('id, text, done, author')
-        .order('created_at')
-        .order('id');
+        .select('id, text, done, author, due_date');
       loading = false;
       if (error) {
         showError('할 일을 불러오지 못했어요.', error);
@@ -219,13 +230,13 @@
       render();
     }
 
-    async function addTodo(text, author) {
+    async function addTodo(text, author, due_date) {
       clearError();
       addButton.disabled = true;
       const result = await db
         .from('todos')
-        .insert({ text, author })
-        .select('id, text, done, author');
+        .insert({ text, author, due_date })
+        .select('id, text, done, author, due_date');
       addButton.disabled = false;
       if (failed('할 일을 추가하지 못했어요.', result)) return false;
       todos.push(result.data[0]);
@@ -286,12 +297,58 @@
       editor.select();
     }
 
+    // 마감일이 가까운 순서, 마감일이 없으면 맨 아래. 같으면 먼저 만든 순서(id).
+    function byDueDate(a, b) {
+      if (a.due_date !== b.due_date) {
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        return a.due_date < b.due_date ? -1 : 1;
+      }
+      return a.id - b.id;
+    }
+
+    function todayString() {
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    }
+
+    // 'YYYY-MM-DD' 두 날짜 사이의 날 수
+    function daysBetween(from, to) {
+      return (Date.parse(to) - Date.parse(from)) / 86400000;
+    }
+
+    function dueBadge(todo) {
+      const [, month, day] = todo.due_date.split('-').map(Number);
+      const days = daysBetween(todayString(), todo.due_date);
+      const badge = document.createElement('span');
+      badge.className = 'due';
+
+      let when;
+      if (days < 0) {
+        when = `${-days}일 지남`;
+        badge.classList.add('overdue');
+      } else if (days === 0) {
+        when = '오늘';
+        badge.classList.add('soon');
+      } else {
+        when = `D-${days}`;
+        if (days <= 2) badge.classList.add('soon');
+      }
+
+      badge.textContent = `${month}/${day} ${when}`;
+      badge.title = `마감일: ${todo.due_date}`;
+      return badge;
+    }
+
     function render() {
       list.innerHTML = '';
 
-      const visible = todos.filter((todo) =>
-        filter === 'all' ? true : filter === 'done' ? todo.done : !todo.done
-      );
+      const visible = todos
+        .filter((todo) =>
+          filter === 'all' ? true : filter === 'done' ? todo.done : !todo.done
+        )
+        .sort(byDueDate);
 
       for (const todo of visible) {
         const item = document.createElement('li');
@@ -310,6 +367,8 @@
         label.addEventListener('dblclick', () => startEdit(item, label, todo));
 
         item.append(checkbox, label);
+
+        if (todo.due_date) item.append(dueBadge(todo));
 
         if (todo.author) {
           const author = document.createElement('span');
@@ -348,7 +407,11 @@
       const text = input.value.trim();
       if (!text || !db) return;
       const author = authorInput.value.trim() || null;
-      if (await addTodo(text, author)) input.value = '';
+      const dueDate = dueInput.value || null;
+      if (await addTodo(text, author, dueDate)) {
+        input.value = '';
+        dueInput.value = '';
+      }
       input.focus();
     });
 
